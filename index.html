@@ -1,1 +1,240 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script type="text/javascript" src="https://getfirebug.com/firebug-lite-debug.js"></script>
+    <meta name="description" content="CS4406 Computer Graphics - Assignment #7" />
+    <meta charset="utf-8" />
+    <title>Assignment #7 for CS4406 Computer Graphics</title>
+    <style>
+        #container {
+            background: #000000;
+            width: 600px;
+            height: 600px;
+        }
+    </style>
+    <meta charset=utf-8 />
+    <style id="jsbin-css"></style>
+</head>
+<body>
+    <div id="container"></div>
+</body>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.5.1/jquery.min.js"></script>
+    <script src="http://uopeopleweb.com/js/dat.gui.min.js"></script>
+    <script src="https://threejs.org/build/three.js"></script>
+    <script src="https://cdn.rawgit.com/mrdoob/three.js/master/examples/js/controls/OrbitControls.js"></script>
+    <script src="http://uopeopleweb.com/js/math.js"></script>
+    <script src="http://uopeopleweb.com/js/Detector.js"></script>
+    <script type="text/javascript">
+        // set the scene size
+        var WIDTH = 600, HEIGHT = 600;
+        
+        // set some camera attributes
+        var VIEW_ANGLE = 45, ASPECT = WIDTH / HEIGHT, NEAR = 0.001, FAR = 100;
+        
+        // get the DOM element to attach to
+        var $container = $('#container');
+
+        // create a WebGL renderer, camera, and a scene
+        // NOTE: for the assignment in Unit 4 where you need to use a texture, or in any other assignment where a texture is required 
+        // you should deactivate the Detector and use ONLY the CanvasRenderer. There are some issues in using what are called Cross Domain 
+        // images for textures. You can get more details by looking up WebGL and CORS using Google search. I have included some code below 
+        // that will get around this issue that you can use.  
+        var renderer = new THREE.WebGLRenderer();
+        var scene = new THREE.Scene();
+        var clock = new THREE.Clock();
+        var camera = new THREE.PerspectiveCamera(VIEW_ANGLE, ASPECT, NEAR, FAR);
+
+        // the camera starts at 0,0,0 so pull it back for some assignments you may need to adjust this value
+        // some distance to make the scene visible properly
+        camera.up.set(0, 0, 1);
+        camera.position.y = 20 * Math.cos(Math.PI / 6);
+        camera.position.z = 20 * Math.sin(Math.PI / 6);
+
+        var cameraDist = camera.position.length();
+
+        // add the camera to the scene
+        scene.add(camera);
+
+        // set up the camera controls
+        var cameraControls = new THREE.OrbitControls(camera, renderer.domElement);
+        cameraControls.addEventListener('mousemove', renderer);
+
+        // start the renderer
+        renderer.setSize(WIDTH, HEIGHT);
+
+        // attach the render-supplied DOM element
+        $container.append(renderer.domElement);
+
+        // Constants for use with hyperbolic paraboloid. If these are changed, the shape will change! Don't use zero.
+        var a = 1.0;
+        var b = 1.0;
+
+        function f(u, v, p) {
+            // This is the function that will compute z-position from X and Y positions. This produces a hyperbolic paraboloid.
+            x = u * 2 - 1;
+            y = v * 2 - 1;
+            p.set(x, y, (x * x) / (a * a) - (y * y) / (b * b));
+        }
+
+        var x_min = -1.0;
+        var y_min = -1.0;
+        var x_max = 1.0;
+        var y_max = 1.0;
+
+        // These functions exist to set vertex colors.
+        function getVertexColor(point) {
+            return new THREE.Color(point.x * 0.5 + 0.5, point.y * 0.5 + 0.5, point.z * 0.5 + 0.5);
+        }
+
+        // The first one is to make the second one more compact
+        function setVertexColors(geometry) {
+            for (var i = 0; i < geometry.faces.length; i++) {
+                var face = geometry.faces[i];
+                face.vertexColors = [
+                    getVertexColor(geometry.vertices[face.a]),
+                    getVertexColor(geometry.vertices[face.b]),
+                    getVertexColor(geometry.vertices[face.c])
+                ];
+            }
+        }
+
+        // This creates a plane grid in the x-y direction, using the specified size and steps.
+        function createPlaneGrid(size, steps) {
+            var group = new THREE.Group();
+            var material = new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.25 });
+            for (var i = 0; i <= steps; i += 1) {
+                var f = (i / steps) - 0.5; // n stands for number
+                var geometry = new THREE.Geometry();
+                geometry.vertices.push(new THREE.Vector3(f * size, -size * 0.5, 0), new THREE.Vector3(f * size, size * 0.5, 0));
+                var line = new THREE.Line(geometry, material);
+                group.add(line);
+            }
+
+            for (var i = 0; i <= steps; i += 1) {
+                var f = (i / steps) - 0.5; // n stands for number
+                var geometry = new THREE.Geometry();
+                geometry.vertices.push(new THREE.Vector3(-size * 0.5, f * size, 0), new THREE.Vector3(size * 0.5, f * size, 0));
+                var line = new THREE.Line(geometry, material);
+                group.add(line);
+            }
+            return group;
+        }
+
+        // Light
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.10);
+        camera.add(ambientLight);
+
+        // Plane
+        const plane = new THREE.Mesh(
+            new THREE.PlaneGeometry(14, 14, 14, 14),
+            new THREE.MeshBasicMaterial({ color: 0x505050, wireframe: true, transparent: true, opacity: 0.25 })
+        );
+
+        plane.rotation.x = -Math.PI / 2;
+        scene.add(plane);
+
+        // Hyperbolic paraboloid
+        var planeGeometry = new THREE.PlaneBufferGeometry(8, 8, 20, 20);
+        planeGeometry.rotateX(Math.PI * 0.5);
+        var v = new THREE.Vector3();
+        var positions = planeGeometry.attributes.position;
+        for (var i = 0; i < positions.count; i++) {
+            v.fromBufferAttribute(positions, i);
+            positions.setY(i, ((v.x * v.x) - (v.z * v.z)) * 0.3);
+        }
+        planeGeometry.computeVertexNormals();
+        var paraboloid = new THREE.Mesh(planeGeometry, new THREE.MeshNormalMaterial({ side: THREE.DoubleSide }));
+        scene.add(paraboloid);
+
+        // Function to create an axis arrow
+        var arrowCylinder = new THREE.CylinderGeometry(0.015, 0.015, 0.2, 32);
+        var arrowCone = new THREE.ConeGeometry(0.03, 0.1, 32);
+
+        // Axis Helper
+        function axisArrow(color) {
+            var group = new THREE.Group();
+            var arrowMaterial = new THREE.MeshPhongMaterial({ color: color, specular: 0x222222, shininess: 100 });
+
+            var cylinder = new THREE.Mesh(arrowCylinder, arrowMaterial);
+            cylinder.position.set(0, 0.125, 0);
+            group.add(cylinder);
+
+            var cone = new THREE.Mesh(arrowCone, arrowMaterial);
+            cone.position.set(0, 0.275, 0);
+            group.add(cone);
+
+            return group;
+        }
+
+        function axisHelper() {
+            var group = new THREE.Group();
+            var xAxis = axisArrow(new THREE.Color(0.0, 1.0, 0.0)); // Green for x-axis
+            var yAxis = axisArrow(new THREE.Color(1.0, 0.0, 0.0)); // Red for y-axis
+            var zAxis = axisArrow(new THREE.Color(0.0, 0.0, 1.0)); // Blue for z-axis
+
+            xAxis.rotateZ(-Math.PI * 0.5);
+            zAxis.rotateX(Math.PI * 0.5); // rotate the arrows to match the axes.
+            group.add(xAxis);
+            group.add(yAxis);
+            group.add(zAxis);
+
+            var cubeGeometry = new THREE.BoxGeometry(0.05, 0.05, 0.05);
+            var cubeMaterial = new THREE.MeshPhongMaterial({ color: 0x808080, specular: 0x222222, shininess: 100 });
+            var cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
+            group.add(cube);
+
+            return group;
+        }
+
+        // Create an axis helper to follow the camera.
+        var axisCamera = axisHelper();
+        scene.add(axisCamera);
+
+        // Create an axis helper to stay at the origin
+        var axisOrigin = axisHelper();
+        scene.add(axisOrigin);
+
+        // add directional lighting
+        var sunLight = new THREE.DirectionalLight(0xffffff, 1.0);
+        sunLight.position.set(100, 100, 100);
+        sunLight.castShadow = true;
+        sunLight.shadow.camera.left = -100;
+        sunLight.shadow.camera.bottom = -100;
+        sunLight.shadow.camera.right = 100;
+        sunLight.shadow.camera.top = 100;
+        sunLight.shadow.camera.far = 1000;
+        scene.add(sunLight);
+
+        // Set a background color for the scene
+        renderer.setClearColor(0xaaaabb, 1.0);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+        // Animation
+      function animate() {
+        requestAnimationFrame(animate);
+        render();
+      }
+
+      function render() {
+        cameraControls.update();
+
+        var cam_x = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+        var cam_y = new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion);
+        var cam_z = new THREE.Vector3(0, 0, 1).applyQuaternion(camera.quaternion);
+        
+        axisCamera.scale.set(0.015, 0.015, 0.015);
+        axisCamera.position.copy(camera.position);
+        axisCamera.position.addScaledVector(cam_x, -0.01875);
+        axisCamera.position.addScaledVector(cam_y, 0.01875);
+        axisCamera.position.addScaledVector(cam_z, -0.06);
+
+        renderer.render(scene, camera);
+      }
+
+      // Start the animation
+      animate();
+    </script>
+  </body>
+</html>
 
